@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f6b4f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Calendrier">
+<meta name="description" content="Calendrier de travail : touchez un jour pour le barrer et compter vos jours travaillés.">
+<title>Calendrier de travail</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📅%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg:#f6f5f1; --card:#fff; --text:#1f2320; --text-dim:#6b7168; --line:#e2e0d8;
+    --accent:#2f6b4f; --accent-soft:#eaf2ec; --today-ring:#c9722f; --pen:#2f6b4f;
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#16181a; --card:#202325; --text:#ece9e2; --text-dim:#9a9d97; --line:#33362f;
+      --accent:#6fbf95; --accent-soft:#22322a; --today-ring:#e0925a; --pen:#6fbf95;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#16181a; --card:#202325; --text:#ece9e2; --text-dim:#9a9d97; --line:#33362f;
+    --accent:#6fbf95; --accent-soft:#22322a; --today-ring:#e0925a; --pen:#6fbf95;
+  }
+  html { scroll-padding-top:env(safe-area-inset-top,0px); }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text); min-height:100%;
+    font-family:"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;
+    display:flex; flex-direction:column; align-items:center; padding:24px 14px 40px;
+  }
+  .wrap { width:100%; max-width:420px; }
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  button { font-family:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .nav-btn {
+    background:none; border:1px solid var(--line); width:40px; height:40px; border-radius:50%;
+    font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;
+  }
+  .nav-btn:active { background:var(--accent-soft); }
+  .month-title { font-size:1.3rem; font-weight:600; letter-spacing:.02em; text-transform:capitalize; text-align:center; }
+  .subtitle { text-align:center; color:var(--text-dim); font-size:.82rem; margin-bottom:18px; font-style:italic; }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 10px 18px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04); touch-action:pan-y;
+  }
+  .weekdays, .grid { display:grid; grid-template-columns:repeat(7,1fr); }
+  .weekdays { margin-bottom:6px; }
+  .weekdays div { text-align:center; font-size:.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+  .grid { gap:4px; }
+  .day {
+    position:relative; aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+    border-radius:10px; font-size:.95rem; cursor:pointer; user-select:none; background:none; border:0; padding:0;
+    -webkit-tap-highlight-color:transparent; transition:background .15s;
+  }
+  .day.empty { visibility:hidden; cursor:default; }
+  .day.weekend { color:var(--text-dim); }
+  .day:not(.empty):active { background:var(--accent-soft); }
+  .day.today { box-shadow:inset 0 0 0 1.5px var(--today-ring); font-weight:600; }
+  .day.crossed { background:var(--accent-soft); }
+  .day .num { position:relative; z-index:1; }
+  .day .strike {
+    position:absolute; inset:0; pointer-events:none; opacity:0;
+    transform:scale(.6) rotate(-18deg); transition:opacity .15s ease, transform .18s ease;
+  }
+  .day.crossed .strike { opacity:1; transform:scale(1) rotate(-18deg); }
+  .strike svg { width:100%; height:100%; }
+  .strike path { fill:none; stroke:var(--pen); stroke-width:2.4; stroke-linecap:round; }
+  .summary { display:flex; justify-content:space-between; align-items:flex-end; margin-top:18px; padding:0 4px; gap:12px; }
+  .stat .count { font-size:2rem; font-weight:700; color:var(--accent); line-height:1; }
+  .stat .label { font-size:.78rem; color:var(--text-dim); margin-top:2px; }
+  .stat.year { text-align:right; }
+  .stat.year .count { font-size:1.4rem; color:var(--text); }
+  .tools { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 16px; margin-top:16px; }
+  .link {
+    background:none; border:none; color:var(--text-dim); font-size:.78rem;
+    text-decoration:underline; cursor:pointer; padding:8px 0;
+  }
+  .link.primary { color:var(--accent); font-weight:600; }
+  .toast {
+    position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translate(-50%,20px);
+    background:var(--text); color:var(--bg); padding:8px 14px; border-radius:20px; font-size:.8rem;
+    opacity:0; pointer-events:none; transition:.2s;
+  }
+  .toast.show { opacity:1; transform:translate(-50%,0); }
+  footer { text-align:center; margin-top:14px; font-size:.72rem; color:var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <button class="nav-btn" id="prevBtn" aria-label="Mois précédent">‹</button>
+    <div class="month-title" id="monthTitle" aria-live="polite"></div>
+    <button class="nav-btn" id="nextBtn" aria-label="Mois suivant">›</button>
+  </header>
+  <div class="subtitle">Touchez un jour pour le barrer et le compter</div>
+
+  <div class="card" id="card">
+    <div class="weekdays"><div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="summary">
+    <div class="stat"><div class="count" id="count">0</div><div class="label">jour(s) de travail ce mois-ci</div></div>
+    <div class="stat year"><div class="count" id="yearCount">0</div><div class="label" id="yearLabel">sur l’année</div></div>
+  </div>
+
+  <div class="tools">
+    <button class="link primary" id="todayBtn">Aujourd’hui</button>
+    <button class="link" id="exportBtn">Exporter</button>
+    <button class="link" id="importBtn">Importer</button>
+    <button class="link" id="resetBtn">Réinitialiser le mois</button>
+    <input type="file" id="fileInput" accept="application/json,.json" hidden>
+  </div>
+
+  <footer>Vos coches restent enregistrées sur cet appareil · pensez à exporter une sauvegarde</footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+  const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  const STORE_KEY = "calendrier-travail-jours";
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, "0");
+  const key = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const STRIKE = `<svg viewBox="0 0 40 40" preserveAspectRatio="none" aria-hidden="true"><path d="M8 8 L32 32"/></svg>`;
+
+  let now = new Date(), viewYear = now.getFullYear(), viewMonth = now.getMonth();
+
+  function loadStore() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveStore() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+    catch (e) { toast("Impossible d’enregistrer sur cet appareil"); }
+  }
+  let store = loadStore();
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  function updateStats() {
+    const mp = `${viewYear}-${pad(viewMonth + 1)}-`, yp = `${viewYear}-`;
+    const keys = Object.keys(store);
+    $("count").textContent = keys.filter(k => k.startsWith(mp)).length;
+    $("yearCount").textContent = keys.filter(k => k.startsWith(yp)).length;
+    $("yearLabel").textContent = `en ${viewYear}`;
+  }
+
+  function render() {
+    now = new Date();
+    $("monthTitle").textContent = `${MOIS[viewMonth]} ${viewYear}`;
+    const grid = $("grid"); grid.innerHTML = "";
+    const offset = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // lundi en premier
+    const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+    for (let i = 0; i < offset; i++) {
+      const e = document.createElement("div"); e.className = "day empty"; grid.appendChild(e);
+    }
+    for (let d = 1; d <= days; d++) {
+      const dow = new Date(viewYear, viewMonth, d).getDay();
+      const k = key(viewYear, viewMonth, d);
+      const isToday = viewYear === now.getFullYear() && viewMonth === now.getMonth() && d === now.getDate();
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.key = k;
+      b.className = "day" + (dow === 0 || dow === 6 ? " weekend" : "") + (store[k] ? " crossed" : "") + (isToday ? " today" : "");
+      b.setAttribute("aria-pressed", !!store[k]);
+      b.setAttribute("aria-label", `${d} ${MOIS[viewMonth]} ${viewYear}`);
+      b.innerHTML = `<span class="num">${d}</span><span class="strike">${STRIKE}</span>`;
+      grid.appendChild(b);
+    }
+    updateStats();
+  }
+
+  // Un seul écouteur : on ne met à jour que la case touchée (pas de re-rendu complet)
+  $("grid").addEventListener("click", e => {
+    const b = e.target.closest(".day[data-key]"); if (!b) return;
+    const k = b.dataset.key;
+    if (store[k]) delete store[k]; else store[k] = true;
+    b.classList.toggle("crossed", !!store[k]);
+    b.setAttribute("aria-pressed", !!store[k]);
+    saveStore(); updateStats();
+  });
+
+  function go(delta) {
+    viewMonth += delta;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    render();
+  }
+  $("prevBtn").onclick = () => go(-1);
+  $("nextBtn").onclick = () => go(1);
+  $("todayBtn").onclick = () => { now = new Date(); viewYear = now.getFullYear(); viewMonth = now.getMonth(); render(); };
+
+  // Glisser à gauche/droite pour changer de mois + flèches du clavier
+  let sx = null, sy = null;
+  $("card").addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  $("card").addEventListener("touchend", e => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+    sx = null;
+  }, { passive: true });
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1);
+  });
+
+  $("resetBtn").onclick = () => {
+    if (!confirm(`Effacer toutes les coches de ${MOIS[viewMonth]} ${viewYear} ?`)) return;
+    const p = `${viewYear}-${pad(viewMonth + 1)}-`;
+    Object.keys(store).forEach(k => { if (k.startsWith(p)) delete store[k]; });
+    saveStore(); render(); toast("Mois réinitialisé");
+  };
+
+  // Sauvegarde / restauration (fichier JSON)
+  $("exportBtn").onclick = () => {
+    const data = JSON.stringify({ version: 1, jours: Object.keys(store).sort() }, null, 2);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    a.download = `calendrier-de-travail-${key(now.getFullYear(), now.getMonth(), now.getDate())}.json`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast("Sauvegarde exportée");
+  };
+  $("importBtn").onclick = () => $("fileInput").click();
+  $("fileInput").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const list = JSON.parse(r.result).jours;
+        const ok = list.filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k));
+        ok.forEach(k => store[k] = true);
+        saveStore(); render(); toast(`${ok.length} jour(s) importé(s)`);
+      } catch (err) { toast("Fichier invalide"); }
+    };
+    r.readAsText(f); e.target.value = "";
+  };
+
+  // Met à jour « aujourd’hui » si la page reste ouverte après minuit
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+  render();
+
+  // PWA : fonctionne hors ligne et s'installe sur l'écran d'accueil
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>
